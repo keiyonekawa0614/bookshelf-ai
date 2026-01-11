@@ -9,25 +9,25 @@ import { BookList } from "@/components/book-list"
 import { RecommendationsView } from "@/components/recommendations-view"
 import { UploadModal } from "@/components/upload-modal"
 import { ProfileView } from "@/components/profile-view"
+import { useAuth } from "@/lib/auth-context"
 
 type Tab = "home" | "books" | "recommend" | "profile"
 
-interface DashboardProps {
-  onLogout: () => void
-}
-
-export function Dashboard({ onLogout }: DashboardProps) {
+export function Dashboard() {
   const [activeTab, setActiveTab] = useState<Tab>("home")
   const [showUpload, setShowUpload] = useState(false)
+  const { user, signOut } = useAuth()
 
   return (
     <main className="min-h-screen flex flex-col bg-background pb-20">
       {/* Content */}
       <div className="flex-1">
-        {activeTab === "home" && <HomeView onUpload={() => setShowUpload(true)} />}
+        {activeTab === "home" && (
+          <HomeView onUpload={() => setShowUpload(true)} userName={user?.displayName || "ゲスト"} />
+        )}
         {activeTab === "books" && <BookList />}
         {activeTab === "recommend" && <RecommendationsView />}
-        {activeTab === "profile" && <ProfileView onLogout={onLogout} />}
+        {activeTab === "profile" && <ProfileView onLogout={signOut} user={user} />}
       </div>
 
       {/* Upload FAB */}
@@ -99,7 +99,7 @@ function NavItem({
   )
 }
 
-function HomeView({ onUpload }: { onUpload: () => void }) {
+function HomeView({ onUpload, userName }: { onUpload: () => void; userName: string }) {
   const unreadCount = 5
   const totalBooks = 23
 
@@ -107,7 +107,7 @@ function HomeView({ onUpload }: { onUpload: () => void }) {
     <div className="p-6 space-y-8">
       {/* Header */}
       <div>
-        <p className="text-sm text-muted-foreground">こんにちは</p>
+        <p className="text-sm text-muted-foreground">こんにちは、{userName}さん</p>
         <h1 className="text-2xl font-bold tracking-tight">読書を始めましょう</h1>
       </div>
 

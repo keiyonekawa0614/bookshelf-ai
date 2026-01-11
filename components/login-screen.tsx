@@ -1,15 +1,38 @@
 "use client"
 
 import { useState } from "react"
-import { BookOpen, Camera, Sparkles } from "lucide-react"
+import { BookOpen, Camera, Sparkles, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dashboard } from "@/components/dashboard"
+import { useAuth } from "@/lib/auth-context"
 
 export function LoginScreen() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const { user, loading, signInWithGoogle } = useAuth()
+  const [isSigningIn, setIsSigningIn] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  if (isLoggedIn) {
-    return <Dashboard onLogout={() => setIsLoggedIn(false)} />
+  if (loading) {
+    return (
+      <main className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-accent" />
+      </main>
+    )
+  }
+
+  if (user) {
+    return <Dashboard />
+  }
+
+  const handleLogin = async () => {
+    setIsSigningIn(true)
+    setError(null)
+    try {
+      await signInWithGoogle()
+    } catch (err) {
+      setError("ログインに失敗しました。もう一度お試しください。")
+    } finally {
+      setIsSigningIn(false)
+    }
   }
 
   return (
@@ -71,11 +94,20 @@ export function LoginScreen() {
 
       {/* CTA */}
       <footer className="p-6 pb-10">
+        {error && <p className="mb-4 text-center text-sm text-red-500">{error}</p>}
         <Button
           className="w-full h-14 text-base font-medium bg-primary text-primary-foreground hover:bg-primary/90"
-          onClick={() => setIsLoggedIn(true)}
+          onClick={handleLogin}
+          disabled={isSigningIn}
         >
-          Googleでログイン
+          {isSigningIn ? (
+            <>
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              ログイン中...
+            </>
+          ) : (
+            "Googleでログイン"
+          )}
         </Button>
         <p className="mt-4 text-center text-xs text-muted-foreground">
           ログインすることで利用規約に同意したことになります

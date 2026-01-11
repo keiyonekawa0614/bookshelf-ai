@@ -5,17 +5,29 @@ import type React from "react"
 import { useState, useRef } from "react"
 import { X, Camera, Upload, Loader2, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { useAuth } from "@/lib/auth-context"
+import { addBook } from "@/lib/firestore"
+import { uploadBookImageBase64 } from "@/lib/storage"
 
 interface UploadModalProps {
   open: boolean
   onClose: () => void
+  onComplete?: () => void
 }
 
-type UploadState = "idle" | "uploading" | "analyzing" | "done"
+type UploadState = "idle" | "uploading" | "form" | "saving" | "done"
 
-export function UploadModal({ open, onClose }: UploadModalProps) {
+export function UploadModal({ open, onClose, onComplete }: UploadModalProps) {
+  const { user } = useAuth()
   const [state, setState] = useState<UploadState>("idle")
   const [preview, setPreview] = useState<string | null>(null)
+  const [bookData, setBookData] = useState({
+    title: "",
+    author: "",
+    genre: "",
+  })
+  const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -33,20 +45,59 @@ export function UploadModal({ open, onClose }: UploadModalProps) {
     if (!preview) return
 
     setState("uploading")
-    await new Promise((resolve) => setTimeout(resolve, 1000))
+    await new Promise((resolve) => setTimeout(resolve, 500))
 
-    setState("analyzing")
-    await new Promise((resolve) => setTimeout(resolve, 2000))
+    // TODO: Vertex AIで画像解析を行う（次のステップで実装）
+    // 現在は手動入力フォームを表示
+    setState("form")
+  }
 
-    setState("done")
-    await new Promise((resolve) => setTimeout(resolve, 1000))
+  const handleSave = async () => {
+    if (!user) return
+    if (!bookData.title.trim()) {
+      setError("タイトルを入力してください")
+      return
+    }
 
-    handleClose()
+    setError(null)
+    setState("saving")
+
+    try {
+      // 画像をCloud Storageにアップロード
+      let coverImageUrl = ""
+      if (preview) {
+        coverImageUrl = await uploadBookImageBase64(user.uid, preview)
+      }
+
+      // Firestoreに本を追加
+      await addBook(user.uid, {
+        title: bookData.title.trim(),
+        author: bookData.author.trim() || "不明",
+        genre: bookData.genre.trim() || "未分類",
+        coverImageUrl,
+        isRead: false,
+      })
+
+      setState("done")
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+
+      if (onComplete) {
+        onComplete()
+      } else {
+        handleClose()
+      }
+    } catch (err) {
+      console.error("保存エラー:", err)
+      setError("保存に失敗しました。もう一度お試しください。")
+      setState("form")
+    }
   }
 
   const handleClose = () => {
     setState("idle")
     setPreview(null)
+    setBookData({ title: "", author: "", genre: "" })
+    setError(null)
     onClose()
   }
 
@@ -64,7 +115,7 @@ export function UploadModal({ open, onClose }: UploadModalProps) {
         </header>
 
         {/* Content */}
-        <div className="flex-1 flex flex-col items-center justify-center p-6">
+        <div className="flex-1 flex flex-col items-center justify-center p-6 overflow-y-auto">
           {!preview ? (
             <div
               onClick={() => fileInputRef.current?.click()}
@@ -80,20 +131,21 @@ export function UploadModal({ open, onClose }: UploadModalProps) {
             </div>
           ) : (
             <div className="w-full max-w-sm space-y-6">
+              {/* 画像プレビュー */}
               <div className="relative aspect-[3/4] rounded-2xl overflow-hidden bg-secondary">
                 <img src={preview || "/placeholder.svg"} alt="Preview" className="w-full h-full object-cover" />
-                {state !== "idle" && (
+                {(state === "uploading" || state === "saving" || state === "done") && (
                   <div className="absolute inset-0 bg-background/80 flex flex-col items-center justify-center gap-4">
                     {state === "uploading" && (
                       <>
                         <Loader2 className="h-8 w-8 animate-spin text-accent" />
-                        <p className="text-sm">アップロード中...</p>
+                        <p className="text-sm">処理中...</p>
                       </>
                     )}
-                    {state === "analyzing" && (
+                    {state === "saving" && (
                       <>
                         <Loader2 className="h-8 w-8 animate-spin text-accent" />
-                        <p className="text-sm">AIが解析中...</p>
+                        <p className="text-sm">保存中...</p>
                       </>
                     )}
                     {state === "done" && (
@@ -108,6 +160,50 @@ export function UploadModal({ open, onClose }: UploadModalProps) {
                 )}
               </div>
 
+              {/* 手動入力フォーム */}
+              {state === "form" && (
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground text-center">本の情報を入力してください</p>
+                  {error && <p className="text-sm text-destructive text-center">{error}</p>}
+                  <div className="space-y-3">
+                    <Input
+                      placeholder="タイトル *"
+                      value={bookData.title}
+                      onChange={(e) => setBookData({ ...bookData, title: e.target.value })}
+                    />
+                    <Input
+                      placeholder="著者"
+                      value={bookData.author}
+                      onChange={(e) => setBookData({ ...bookData, author: e.target.value })}
+                    />
+                    <Input
+                      placeholder="ジャンル（例: ビジネス、技術書）"
+                      value={bookData.genre}
+                      onChange={(e) => setBookData({ ...bookData, genre: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-3 pt-2">
+                    <Button
+                      className="w-full h-14 bg-accent text-accent-foreground hover:bg-accent/90"
+                      onClick={handleSave}
+                    >
+                      登録する
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      className="w-full"
+                      onClick={() => {
+                        setPreview(null)
+                        setState("idle")
+                      }}
+                    >
+                      写真を変更
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* 初期状態のボタン */}
               {state === "idle" && (
                 <div className="space-y-3">
                   <Button

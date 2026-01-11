@@ -1,68 +1,36 @@
 "use client"
 
 import type React from "react"
-
-import { useState } from "react"
-import { Check, BookOpen } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Check, BookOpen, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
-
-interface Book {
-  id: string
-  title: string
-  author: string
-  genre: string
-  coverUrl: string
-  isRead: boolean
-}
-
-const mockBooks: Book[] = [
-  {
-    id: "1",
-    title: "人を動かす",
-    author: "D・カーネギー",
-    genre: "自己啓発",
-    coverUrl: "/self-help-book-cover.png",
-    isRead: false,
-  },
-  {
-    id: "2",
-    title: "ゼロから作るDeep Learning",
-    author: "斎藤康毅",
-    genre: "技術書",
-    coverUrl: "/programming-book-cover.png",
-    isRead: true,
-  },
-  {
-    id: "3",
-    title: "サピエンス全史",
-    author: "ユヴァル・ノア・ハラリ",
-    genre: "歴史",
-    coverUrl: "/history-book-cover.png",
-    isRead: false,
-  },
-  {
-    id: "4",
-    title: "嫌われる勇気",
-    author: "岸見一郎",
-    genre: "自己啓発",
-    coverUrl: "/psychology-book-cover.png",
-    isRead: false,
-  },
-  {
-    id: "5",
-    title: "コンテナ物語",
-    author: "マルク・レビンソン",
-    genre: "ビジネス",
-    coverUrl: "/business-book-cover.png",
-    isRead: true,
-  },
-]
+import { useAuth } from "@/lib/auth-context"
+import { getBooks, updateBookReadStatus, type Book } from "@/lib/firestore"
 
 type Filter = "all" | "unread" | "read"
 
 export function BookList() {
+  const { user } = useAuth()
   const [filter, setFilter] = useState<Filter>("all")
-  const [books, setBooks] = useState(mockBooks)
+  const [books, setBooks] = useState<Book[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function fetchBooks() {
+      if (!user) return
+
+      try {
+        const fetchedBooks = await getBooks(user.uid)
+        setBooks(fetchedBooks)
+      } catch (error) {
+        console.error("本の取得エラー:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchBooks()
+  }, [user])
 
   const filteredBooks = books.filter((book) => {
     if (filter === "unread") return !book.isRead
@@ -70,8 +38,32 @@ export function BookList() {
     return true
   })
 
-  const toggleRead = (id: string) => {
-    setBooks(books.map((book) => (book.id === id ? { ...book, isRead: !book.isRead } : book)))
+  const toggleRead = async (id: string) => {
+    if (!user) return
+
+    const book = books.find((b) => b.id === id)
+    if (!book) return
+
+    const newStatus = !book.isRead
+
+    // 楽観的UI更新
+    setBooks(books.map((b) => (b.id === id ? { ...b, isRead: newStatus } : b)))
+
+    try {
+      await updateBookReadStatus(user.uid, id, newStatus)
+    } catch (error) {
+      console.error("状態更新エラー:", error)
+      // エラー時は元に戻す
+      setBooks(books.map((b) => (b.id === id ? { ...b, isRead: !newStatus } : b)))
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    )
   }
 
   return (
@@ -97,29 +89,39 @@ export function BookList() {
 
       {/* Book List */}
       <div className="space-y-3">
-        {filteredBooks.map((book) => (
-          <div key={book.id} className="flex gap-4 bg-card rounded-xl p-4 border border-border">
-            <img
-              src={book.coverUrl || "/placeholder.svg"}
-              alt={book.title}
-              className="w-16 h-24 object-cover rounded-lg bg-secondary"
-            />
-            <div className="flex-1 min-w-0">
-              <h3 className="font-medium truncate">{book.title}</h3>
-              <p className="text-sm text-muted-foreground truncate">{book.author}</p>
-              <span className="inline-block mt-2 px-2 py-1 text-xs bg-secondary rounded-md">{book.genre}</span>
-            </div>
-            <button
-              onClick={() => toggleRead(book.id)}
-              className={cn(
-                "flex items-center justify-center w-10 h-10 rounded-full border-2 transition-colors self-center",
-                book.isRead ? "bg-accent border-accent text-accent-foreground" : "border-border text-muted-foreground",
-              )}
-            >
-              {book.isRead ? <Check className="h-5 w-5" /> : <BookOpen className="h-4 w-4" />}
-            </button>
+        {filteredBooks.length === 0 ? (
+          <div className="text-center py-12 text-muted-foreground">
+            <BookOpen className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p>本がまだ登録されていません</p>
+            <p className="text-sm mt-1">写真をアップロードして追加しましょう</p>
           </div>
-        ))}
+        ) : (
+          filteredBooks.map((book) => (
+            <div key={book.id} className="flex gap-4 bg-card rounded-xl p-4 border border-border">
+              <img
+                src={book.coverImageUrl || "/placeholder.svg?height=96&width=64&query=book cover"}
+                alt={book.title}
+                className="w-16 h-24 object-cover rounded-lg bg-secondary"
+              />
+              <div className="flex-1 min-w-0">
+                <h3 className="font-medium truncate">{book.title}</h3>
+                <p className="text-sm text-muted-foreground truncate">{book.author}</p>
+                <span className="inline-block mt-2 px-2 py-1 text-xs bg-secondary rounded-md">{book.genre}</span>
+              </div>
+              <button
+                onClick={() => toggleRead(book.id)}
+                className={cn(
+                  "flex items-center justify-center w-10 h-10 rounded-full border-2 transition-colors self-center",
+                  book.isRead
+                    ? "bg-accent border-accent text-accent-foreground"
+                    : "border-border text-muted-foreground",
+                )}
+              >
+                {book.isRead ? <Check className="h-5 w-5" /> : <BookOpen className="h-4 w-4" />}
+              </button>
+            </div>
+          ))
+        )}
       </div>
     </div>
   )

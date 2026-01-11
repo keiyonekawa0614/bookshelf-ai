@@ -1,15 +1,15 @@
 "use client"
 
 import type React from "react"
-
-import { useState } from "react"
-import { Home, BookOpen, Sparkles, User, Plus, Camera } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Home, BookOpen, Sparkles, User, Plus, Camera, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { BookList } from "@/components/book-list"
 import { RecommendationsView } from "@/components/recommendations-view"
 import { UploadModal } from "@/components/upload-modal"
 import { ProfileView } from "@/components/profile-view"
 import { useAuth } from "@/lib/auth-context"
+import { getBooks, type Book } from "@/lib/firestore"
 
 type Tab = "home" | "books" | "recommend" | "profile"
 
@@ -17,17 +17,53 @@ export function Dashboard() {
   const [activeTab, setActiveTab] = useState<Tab>("home")
   const [showUpload, setShowUpload] = useState(false)
   const { user, signOut } = useAuth()
+  const [books, setBooks] = useState<Book[]>([])
+  const [loadingBooks, setLoadingBooks] = useState(true)
+
+  useEffect(() => {
+    async function fetchBooks() {
+      if (!user) return
+      try {
+        const fetchedBooks = await getBooks(user.uid)
+        setBooks(fetchedBooks)
+      } catch (error) {
+        console.error("本の取得エラー:", error)
+      } finally {
+        setLoadingBooks(false)
+      }
+    }
+    fetchBooks()
+  }, [user])
+
+  const handleUploadComplete = async () => {
+    if (!user) return
+    setShowUpload(false)
+    setLoadingBooks(true)
+    try {
+      const fetchedBooks = await getBooks(user.uid)
+      setBooks(fetchedBooks)
+    } catch (error) {
+      console.error("本の取得エラー:", error)
+    } finally {
+      setLoadingBooks(false)
+    }
+  }
 
   return (
     <main className="min-h-screen flex flex-col bg-background pb-20">
       {/* Content */}
       <div className="flex-1">
         {activeTab === "home" && (
-          <HomeView onUpload={() => setShowUpload(true)} userName={user?.displayName || "ゲスト"} />
+          <HomeView
+            onUpload={() => setShowUpload(true)}
+            userName={user?.displayName || "ゲスト"}
+            books={books}
+            loading={loadingBooks}
+          />
         )}
         {activeTab === "books" && <BookList />}
         {activeTab === "recommend" && <RecommendationsView />}
-        {activeTab === "profile" && <ProfileView onLogout={signOut} user={user} />}
+        {activeTab === "profile" && <ProfileView onLogout={signOut} user={user} books={books} />}
       </div>
 
       {/* Upload FAB */}
@@ -70,7 +106,7 @@ export function Dashboard() {
       </nav>
 
       {/* Upload Modal */}
-      <UploadModal open={showUpload} onClose={() => setShowUpload(false)} />
+      <UploadModal open={showUpload} onClose={() => setShowUpload(false)} onComplete={handleUploadComplete} />
     </main>
   )
 }
@@ -99,9 +135,19 @@ function NavItem({
   )
 }
 
-function HomeView({ onUpload, userName }: { onUpload: () => void; userName: string }) {
-  const unreadCount = 5
-  const totalBooks = 23
+function HomeView({
+  onUpload,
+  userName,
+  books,
+  loading,
+}: {
+  onUpload: () => void
+  userName: string
+  books: Book[]
+  loading: boolean
+}) {
+  const unreadCount = books.filter((b) => !b.isRead).length
+  const totalBooks = books.length
 
   return (
     <div className="p-6 space-y-8">
@@ -115,13 +161,25 @@ function HomeView({ onUpload, userName }: { onUpload: () => void; userName: stri
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-card rounded-xl p-5 border border-border">
           <p className="text-sm text-muted-foreground">積読</p>
-          <p className="text-3xl font-bold mt-1">{unreadCount}</p>
-          <p className="text-xs text-muted-foreground mt-1">冊</p>
+          {loading ? (
+            <Loader2 className="h-6 w-6 animate-spin mt-2" />
+          ) : (
+            <>
+              <p className="text-3xl font-bold mt-1">{unreadCount}</p>
+              <p className="text-xs text-muted-foreground mt-1">冊</p>
+            </>
+          )}
         </div>
         <div className="bg-card rounded-xl p-5 border border-border">
           <p className="text-sm text-muted-foreground">総登録数</p>
-          <p className="text-3xl font-bold mt-1">{totalBooks}</p>
-          <p className="text-xs text-muted-foreground mt-1">冊</p>
+          {loading ? (
+            <Loader2 className="h-6 w-6 animate-spin mt-2" />
+          ) : (
+            <>
+              <p className="text-3xl font-bold mt-1">{totalBooks}</p>
+              <p className="text-xs text-muted-foreground mt-1">冊</p>
+            </>
+          )}
         </div>
       </div>
 
@@ -148,7 +206,11 @@ function HomeView({ onUpload, userName }: { onUpload: () => void; userName: stri
           <p className="text-sm font-medium">AIからの提案</p>
         </div>
         <p className="text-sm text-muted-foreground leading-relaxed">
-          積読が{unreadCount}冊あります。「人を動かす」はいかがですか？自己啓発の名著で、すぐに読み始められます。
+          {totalBooks === 0
+            ? "本を登録すると、AIがおすすめの本を提案します。写真をアップロードして始めましょう！"
+            : unreadCount > 0
+              ? `積読が${unreadCount}冊あります。まずは1冊読み始めてみましょう！`
+              : "すべての本を読了しました！新しい本を追加してみましょう。"}
         </p>
       </div>
     </div>

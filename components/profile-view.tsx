@@ -2,6 +2,7 @@
 
 import type React from "react"
 import type { User } from "firebase/auth"
+import type { Book } from "@/lib/firestore"
 
 import { LogOut, ChevronRight, Bell, Shield, HelpCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -9,15 +10,14 @@ import { Button } from "@/components/ui/button"
 interface ProfileViewProps {
   onLogout: () => void
   user: User | null
+  books: Book[]
 }
 
-export function ProfileView({ onLogout, user }: ProfileViewProps) {
-  const stats = {
-    totalBooks: 23,
-    readBooks: 18,
-    unreadBooks: 5,
-    genres: 6,
-  }
+export function ProfileView({ onLogout, user, books }: ProfileViewProps) {
+  const totalBooks = books.length
+  const readBooks = books.filter((b) => b.isRead).length
+  const unreadBooks = books.filter((b) => !b.isRead).length
+  const genres = [...new Set(books.map((b) => b.genre))].length
 
   const getInitial = () => {
     if (user?.displayName) {
@@ -31,7 +31,7 @@ export function ProfileView({ onLogout, user }: ProfileViewProps) {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Profile Header - Firebase Authのユーザー情報を表示 */}
+      {/* Profile Header */}
       <div className="flex items-center gap-4">
         {user?.photoURL ? (
           <img
@@ -50,24 +50,24 @@ export function ProfileView({ onLogout, user }: ProfileViewProps) {
         </div>
       </div>
 
-      {/* Reading Stats */}
+      {/* Reading Stats - 実際のデータを表示 */}
       <div className="bg-card rounded-xl p-5 border border-border">
         <h2 className="text-sm font-medium text-muted-foreground mb-4">読書統計</h2>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <p className="text-2xl font-bold">{stats.totalBooks}</p>
+            <p className="text-2xl font-bold">{totalBooks}</p>
             <p className="text-xs text-muted-foreground">総登録数</p>
           </div>
           <div>
-            <p className="text-2xl font-bold">{stats.readBooks}</p>
+            <p className="text-2xl font-bold">{readBooks}</p>
             <p className="text-xs text-muted-foreground">読了</p>
           </div>
           <div>
-            <p className="text-2xl font-bold">{stats.unreadBooks}</p>
+            <p className="text-2xl font-bold">{unreadBooks}</p>
             <p className="text-xs text-muted-foreground">積読</p>
           </div>
           <div>
-            <p className="text-2xl font-bold">{stats.genres}</p>
+            <p className="text-2xl font-bold">{genres}</p>
             <p className="text-xs text-muted-foreground">ジャンル</p>
           </div>
         </div>

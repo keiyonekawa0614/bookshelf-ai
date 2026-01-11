@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
 import { signInWithPopup, signOut as firebaseSignOut, onAuthStateChanged, type User } from "firebase/auth"
 import { auth, googleProvider } from "@/lib/firebase"
+import { createOrUpdateUserProfile } from "@/lib/firestore"
 
 interface AuthContextType {
   user: User | null
@@ -18,8 +19,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user)
+      if (user) {
+        try {
+          await createOrUpdateUserProfile(user.uid, {
+            displayName: user.displayName || "",
+            email: user.email || "",
+            photoURL: user.photoURL || "",
+          })
+        } catch (error) {
+          console.error("プロフィール保存エラー:", error)
+        }
+      }
       setLoading(false)
     })
 

@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState, useRef } from "react"
-import { X, Camera, Upload, Loader2, Check } from "lucide-react"
+import { X, ImageIcon, Upload, Loader2, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useAuth } from "@/lib/auth-context"
@@ -47,8 +47,6 @@ export function UploadModal({ open, onClose, onComplete }: UploadModalProps) {
     setState("uploading")
     await new Promise((resolve) => setTimeout(resolve, 500))
 
-    // TODO: Vertex AIで画像解析を行う（次のステップで実装）
-    // 現在は手動入力フォームを表示
     setState("form")
   }
 
@@ -63,13 +61,11 @@ export function UploadModal({ open, onClose, onComplete }: UploadModalProps) {
     setState("saving")
 
     try {
-      // 画像をCloud Storageにアップロード
       let coverImageUrl = ""
       if (preview) {
         coverImageUrl = await uploadBookImageBase64(user.uid, preview)
       }
 
-      // Firestoreに本を追加
       await addBook(user.uid, {
         title: bookData.title.trim(),
         author: bookData.author.trim() || "不明",
@@ -117,16 +113,18 @@ export function UploadModal({ open, onClose, onComplete }: UploadModalProps) {
         {/* Content */}
         <div className="flex-1 flex flex-col items-center justify-center p-6 overflow-y-auto">
           {!preview ? (
-            <div
-              onClick={() => fileInputRef.current?.click()}
-              className="w-full max-w-sm aspect-[3/4] border-2 border-dashed border-border rounded-2xl flex flex-col items-center justify-center gap-4 cursor-pointer hover:border-muted-foreground transition-colors"
-            >
-              <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center">
-                <Camera className="h-8 w-8 text-muted-foreground" />
-              </div>
-              <div className="text-center">
-                <p className="font-medium">写真をアップロード</p>
-                <p className="text-sm text-muted-foreground mt-1">タップして選択</p>
+            <div className="w-full max-w-sm space-y-4">
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full p-8 border-2 border-dashed border-border rounded-2xl flex flex-col items-center gap-4 cursor-pointer hover:border-muted-foreground transition-colors"
+              >
+                <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center">
+                  <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                </div>
+                <div className="text-center">
+                  <p className="font-medium">写真を選択</p>
+                  <p className="text-sm text-muted-foreground mt-1">本の表紙を撮影またはギャラリーから選択</p>
+                </div>
               </div>
             </div>
           ) : (
@@ -221,14 +219,7 @@ export function UploadModal({ open, onClose, onComplete }: UploadModalProps) {
             </div>
           )}
 
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            onChange={handleFileChange}
-            className="hidden"
-          />
+          <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
         </div>
       </div>
     </div>

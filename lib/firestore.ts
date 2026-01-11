@@ -11,7 +11,7 @@ import {
     serverTimestamp,
     type Timestamp,
   } from "firebase/firestore"
-  import { db } from "@/lib/firebase"
+  import { getFirebaseDb } from "@/lib/firebase"
   
   // 型定義
   export interface Book {
@@ -45,6 +45,9 @@ import {
     userId: string,
     data: { displayName: string; email: string; photoURL: string },
   ) {
+    const db = getFirebaseDb()
+    if (!db) throw new Error("Firestore is not initialized")
+  
     const userRef = doc(db, "users", userId)
     const userSnap = await getDoc(userRef)
   
@@ -59,6 +62,9 @@ import {
   }
   
   export async function getUserProfile(userId: string): Promise<UserProfile | null> {
+    const db = getFirebaseDb()
+    if (!db) throw new Error("Firestore is not initialized")
+  
     const userRef = doc(db, "users", userId)
     const userSnap = await getDoc(userRef)
   
@@ -70,6 +76,9 @@ import {
   
   // 本の管理関連
   export async function addBook(userId: string, book: Omit<Book, "id" | "createdAt">): Promise<string> {
+    const db = getFirebaseDb()
+    if (!db) throw new Error("Firestore is not initialized")
+  
     const booksRef = collection(db, "users", userId, "books")
     const newBookRef = doc(booksRef)
   
@@ -82,6 +91,9 @@ import {
   }
   
   export async function getBooks(userId: string): Promise<Book[]> {
+    const db = getFirebaseDb()
+    if (!db) throw new Error("Firestore is not initialized")
+  
     const booksRef = collection(db, "users", userId, "books")
     const q = query(booksRef, orderBy("createdAt", "desc"))
     const snapshot = await getDocs(q)
@@ -93,11 +105,17 @@ import {
   }
   
   export async function updateBookReadStatus(userId: string, bookId: string, isRead: boolean) {
+    const db = getFirebaseDb()
+    if (!db) throw new Error("Firestore is not initialized")
+  
     const bookRef = doc(db, "users", userId, "books", bookId)
     await updateDoc(bookRef, { isRead })
   }
   
   export async function deleteBook(userId: string, bookId: string) {
+    const db = getFirebaseDb()
+    if (!db) throw new Error("Firestore is not initialized")
+  
     const bookRef = doc(db, "users", userId, "books", bookId)
     await deleteDoc(bookRef)
   }
@@ -107,6 +125,9 @@ import {
     userId: string,
     recommendation: Omit<Recommendation, "id" | "createdAt">,
   ): Promise<string> {
+    const db = getFirebaseDb()
+    if (!db) throw new Error("Firestore is not initialized")
+  
     const recsRef = collection(db, "users", userId, "recommendations")
     const newRecRef = doc(recsRef)
   
@@ -119,6 +140,9 @@ import {
   }
   
   export async function getRecommendations(userId: string): Promise<Recommendation[]> {
+    const db = getFirebaseDb()
+    if (!db) throw new Error("Firestore is not initialized")
+  
     const recsRef = collection(db, "users", userId, "recommendations")
     const q = query(recsRef, orderBy("createdAt", "desc"))
     const snapshot = await getDocs(q)

@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
 import { signInWithPopup, signOut as firebaseSignOut, onAuthStateChanged, type User } from "firebase/auth"
-import { auth, googleProvider } from "@/lib/firebase"
+import { getFirebaseAuth, getGoogleProvider } from "@/lib/firebase"
 import { createOrUpdateUserProfile } from "@/lib/firestore"
 
 interface AuthContextType {
@@ -19,6 +19,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    const auth = getFirebaseAuth()
+    if (!auth) {
+      setLoading(false)
+      return
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user)
       if (user) {
@@ -39,6 +45,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const signInWithGoogle = async () => {
+    const auth = getFirebaseAuth()
+    const googleProvider = getGoogleProvider()
+
+    if (!auth || !googleProvider) {
+      throw new Error("Firebase is not initialized")
+    }
+
     try {
       await signInWithPopup(auth, googleProvider)
     } catch (error) {
@@ -48,6 +61,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signOut = async () => {
+    const auth = getFirebaseAuth()
+
+    if (!auth) {
+      throw new Error("Firebase is not initialized")
+    }
+
     try {
       await firebaseSignOut(auth)
     } catch (error) {

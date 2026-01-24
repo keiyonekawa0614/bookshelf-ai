@@ -13,6 +13,7 @@ interface Book {
   author: string
   genre: string
   isRead: boolean
+  createdAt?: { toDate: () => Date } | { seconds: number; nanoseconds: number }
 }
 
 interface Message {

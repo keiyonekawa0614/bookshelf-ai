@@ -2,21 +2,22 @@
 
 import type React from "react"
 import { useState, useEffect } from "react"
-import { Home, BookOpen, Sparkles, User, Plus, Camera, Loader2 } from "lucide-react"
+import { Home, BookOpen, MessageCircle, User, Plus, Camera, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { BookList } from "@/components/book-list"
-import { RecommendationsView } from "@/components/recommendations-view"
 import { UploadModal } from "@/components/upload-modal"
 import { ProfileView } from "@/components/profile-view"
+import { ChatView } from "@/components/chat-view"
+import { AISuggestion } from "@/components/ai-suggestion"
 import { useAuth } from "@/lib/auth-context"
 import { getBooks, type Book } from "@/lib/firestore"
-import { AIChat } from "@/components/ai-chat"
 
-type Tab = "home" | "books" | "recommend" | "profile"
+type Tab = "home" | "books" | "chat" | "profile"
 
 export function Dashboard() {
   const [activeTab, setActiveTab] = useState<Tab>("home")
   const [showUpload, setShowUpload] = useState(false)
+  const [initialChatQuestion, setInitialChatQuestion] = useState<string | undefined>()
   const { user, signOut } = useAuth()
   const [books, setBooks] = useState<Book[]>([])
   const [loadingBooks, setLoadingBooks] = useState(true)
@@ -57,24 +58,36 @@ export function Dashboard() {
         {activeTab === "home" && (
           <HomeView
             onUpload={() => setShowUpload(true)}
+            onAskQuestion={(question) => {
+              setInitialChatQuestion(question)
+              setActiveTab("chat")
+            }}
             userName={user?.displayName || "ゲスト"}
             books={books}
             loading={loadingBooks}
           />
         )}
         {activeTab === "books" && <BookList />}
-        {activeTab === "recommend" && <RecommendationsView />}
+        {activeTab === "chat" && (
+          <ChatView 
+            books={books} 
+            initialQuestion={initialChatQuestion}
+            onInitialQuestionHandled={() => setInitialChatQuestion(undefined)}
+          />
+        )}
         {activeTab === "profile" && <ProfileView onLogout={signOut} user={user} books={books} />}
       </div>
 
-      {/* Upload FAB */}
-      <Button
-        size="icon"
-        className="fixed bottom-20 right-6 h-14 w-14 rounded-full bg-accent text-accent-foreground shadow-lg hover:bg-accent/90 z-50"
-        onClick={() => setShowUpload(true)}
-      >
-        <Plus className="h-6 w-6" />
-      </Button>
+      {/* Upload FAB - チャットタブ以外で表示 */}
+      {activeTab !== "chat" && (
+        <Button
+          size="icon"
+          className="fixed bottom-20 right-6 h-14 w-14 rounded-full bg-accent text-accent-foreground shadow-lg hover:bg-accent/90 z-50"
+          onClick={() => setShowUpload(true)}
+        >
+          <Plus className="h-6 w-6" />
+        </Button>
+      )}
 
       {/* Bottom Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 bg-card border-t border-border">
@@ -92,10 +105,10 @@ export function Dashboard() {
             onClick={() => setActiveTab("books")}
           />
           <NavItem
-            icon={<Sparkles className="h-5 w-5" />}
-            label="おすすめ"
-            active={activeTab === "recommend"}
-            onClick={() => setActiveTab("recommend")}
+            icon={<MessageCircle className="h-5 w-5" />}
+            label="チャット"
+            active={activeTab === "chat"}
+            onClick={() => setActiveTab("chat")}
           />
           <NavItem
             icon={<User className="h-5 w-5" />}
@@ -138,11 +151,13 @@ function NavItem({
 
 function HomeView({
   onUpload,
+  onAskQuestion,
   userName,
   books,
   loading,
 }: {
   onUpload: () => void
+  onAskQuestion: (question: string) => void
   userName: string
   books: Book[]
   loading: boolean
@@ -200,8 +215,12 @@ function HomeView({
         </Button>
       </div>
 
-      {/* AI Chat */}
-      <AIChat books={books} />
+      {/* AI Suggestion */}
+      <AISuggestion 
+        booksCount={totalBooks} 
+        unreadCount={unreadCount} 
+        onAskQuestion={onAskQuestion} 
+      />
     </div>
   )
 }

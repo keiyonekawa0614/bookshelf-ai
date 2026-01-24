@@ -37,9 +37,8 @@ export function Dashboard() {
     fetchBooks()
   }, [user])
 
-  const handleUploadComplete = async () => {
+  const refreshBooks = async () => {
     if (!user) return
-    setShowUpload(false)
     setLoadingBooks(true)
     try {
       const fetchedBooks = await getBooks(user.uid)
@@ -49,6 +48,11 @@ export function Dashboard() {
     } finally {
       setLoadingBooks(false)
     }
+  }
+
+  const handleUploadComplete = async () => {
+    setShowUpload(false)
+    await refreshBooks()
   }
 
   return (
@@ -73,6 +77,7 @@ export function Dashboard() {
             books={books} 
             initialQuestion={initialChatQuestion}
             onInitialQuestionHandled={() => setInitialChatQuestion(undefined)}
+            onBooksUpdated={refreshBooks}
           />
         )}
         {activeTab === "profile" && <ProfileView onLogout={signOut} user={user} books={books} />}

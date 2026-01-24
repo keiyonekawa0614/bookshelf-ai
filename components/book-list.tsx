@@ -106,7 +106,14 @@ export function BookList() {
               <div className="flex-1 min-w-0">
                 <h3 className="font-medium truncate">{book.title}</h3>
                 <p className="text-sm text-muted-foreground truncate">{book.author}</p>
-                <span className="inline-block mt-2 px-2 py-1 text-xs bg-secondary rounded-md">{book.genre}</span>
+                <div className="flex items-center gap-2 mt-2">
+                  <span className="px-2 py-1 text-xs bg-secondary rounded-md">{book.genre}</span>
+                  {book.createdAt && (
+                    <span className="text-xs text-muted-foreground">
+                      {book.createdAt.toDate().toLocaleDateString("ja-JP")}
+                    </span>
+                  )}
+                </div>
               </div>
               <button
                 onClick={() => toggleRead(book.id)}

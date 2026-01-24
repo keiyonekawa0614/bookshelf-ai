@@ -5,6 +5,7 @@
 ## 機能
 
 - 写真から本のタイトル・著者・ジャンルを自動抽出（Vertex AI）
+- AIチャット機能（本棚の情報をRAGとして活用）
 - 購入した本と同類のおすすめ本を提案
 - ジャンルの偏りを防ぐ別ジャンルのおすすめ
 - 読了/未読の管理（積読管理）
@@ -37,7 +38,34 @@
 │   Firestore   │    │Cloud Storage  │    │  Vertex AI    │
 │   (データ)     │    │   (画像)      │    │  (Gemini)     │
 └───────────────┘    └───────────────┘    └───────────────┘
+                                                  │
+                                          ┌───────┴───────┐
+                                          │               │
+                                    画像解析API     AIチャットAPI
+                                   (本の情報抽出)   (RAGベース会話)
 ```
+
+## AI機能
+
+### 1. 画像解析（本の登録）
+
+- **エンドポイント**: `/api/analyze-book`
+- **モデル**: Gemini 2.5 Flash
+- **機能**: アップロードされた本の写真からタイトル・著者・ジャンルを抽出
+- **認証**: Google Auth Library（ローカル/Cloud Run両対応）
+
+### 2. AIチャット（RAGベース）
+
+- **エンドポイント**: `/api/chat`
+- **モデル**: Gemini 2.5 Flash
+- **機能**: ユーザーの本棚データをコンテキストとして、読書に関する質問に回答
+- **RAGデータ**: Firestoreに保存された本の情報（タイトル、著者、ジャンル、読了状態）
+- **認証**: Google Auth Library（ローカル/Cloud Run両対応）
+
+#### チャット例
+- 「今日の夜読むべき本は？」
+- 「積読の中でおすすめは？」
+- 「ビジネス書で読んでない本は？」
 
 ## 環境変数
 
@@ -111,9 +139,16 @@ npm install
 cp .env.example .env.local
 # .env.local を編集
 
+# Vertex AI用のGoogle認証（初回のみ）
+gcloud auth application-default login
+
 # 開発サーバー起動
 npm run dev
 ```
+
+### ローカルでのVertex AI認証
+
+ローカル環境でAI機能（画像解析・チャット）を使用するには、`gcloud auth application-default login` を実行してGoogle Cloud認証を設定する必要があります。Cloud Run環境ではサービスアカウントが自動的に使用されます。
 
 ## デプロイ
 
@@ -141,12 +176,14 @@ gcloud run deploy book-ai-app \
 /
 ├── app/
 │   ├── api/
-│   │   └── analyze-book/    # Vertex AI 画像解析API
+│   │   ├── analyze-book/    # Vertex AI 画像解析API
+│   │   └── chat/            # AIチャットAPI（RAG）
 │   ├── globals.css
 │   ├── layout.tsx
 │   └── page.tsx
 ├── components/
 │   ├── ui/                  # shadcn/ui コンポーネント
+│   ├── ai-chat.tsx          # AIチャットUI
 │   ├── book-list.tsx        # 本棚一覧
 │   ├── dashboard.tsx        # ホーム画面
 │   ├── login-screen.tsx     # ログイン画面

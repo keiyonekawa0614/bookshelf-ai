@@ -70,7 +70,7 @@ export function Dashboard() {
       {/* Upload FAB */}
       <Button
         size="icon"
-        className="fixed bottom-24 right-6 h-14 w-14 rounded-full bg-accent text-accent-foreground shadow-lg hover:bg-accent/90"
+        className="fixed bottom-20 right-6 h-14 w-14 rounded-full bg-accent text-accent-foreground shadow-lg hover:bg-accent/90 z-50"
         onClick={() => setShowUpload(true)}
       >
         <Plus className="h-6 w-6" />

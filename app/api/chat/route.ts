@@ -13,6 +13,7 @@ interface Book {
   author: string
   genre: string
   isRead: boolean
+  createdAt?: { toDate: () => Date } | { seconds: number; nanoseconds: number }
 }
 
 interface Message {
@@ -43,10 +44,24 @@ export async function POST(request: NextRequest) {
     }
 
     // 本棚の情報をコンテキストとして作成
+    const formatDate = (createdAt: Book["createdAt"]) => {
+      if (!createdAt) return ""
+      let date: Date
+      if ("toDate" in createdAt && typeof createdAt.toDate === "function") {
+        date = createdAt.toDate()
+      } else if ("seconds" in createdAt) {
+        date = new Date(createdAt.seconds * 1000)
+      } else {
+        return ""
+      }
+      return date.toLocaleDateString("ja-JP")
+    }
+
     const booksContext = books.length > 0
-      ? books.map(book => 
-          `- 「${book.title}」${book.author ? ` (著者: ${book.author})` : ""}${book.genre ? ` [ジャンル: ${book.genre}]` : ""} - ${book.isRead ? "読了" : "未読"}`
-        ).join("\n")
+      ? books.map(book => {
+          const dateStr = formatDate(book.createdAt)
+          return `- 「${book.title}」${book.author ? ` (著者: ${book.author})` : ""}${book.genre ? ` [ジャンル: ${book.genre}]` : ""}${dateStr ? ` [登録日: ${dateStr}]` : ""} - ${book.isRead ? "読了" : "未読"}`
+        }).join("\n")
       : "まだ本が登録されていません。"
 
     const unreadBooks = books.filter(b => !b.isRead)

@@ -10,6 +10,7 @@ import { UploadModal } from "@/components/upload-modal"
 import { ProfileView } from "@/components/profile-view"
 import { useAuth } from "@/lib/auth-context"
 import { getBooks, type Book } from "@/lib/firestore"
+import { AIChat } from "@/components/ai-chat" // Import AIChat component
 
 type Tab = "home" | "books" | "recommend" | "profile"
 
@@ -199,20 +200,8 @@ function HomeView({
         </Button>
       </div>
 
-      {/* AI Suggestion */}
-      <div className="bg-card rounded-xl p-5 border border-border">
-        <div className="flex items-center gap-2 mb-3">
-          <Sparkles className="h-4 w-4 text-accent" />
-          <p className="text-sm font-medium">AIからの提案</p>
-        </div>
-        <p className="text-sm text-muted-foreground leading-relaxed">
-          {totalBooks === 0
-            ? "本を登録すると、AIがおすすめの本を提案します。写真をアップロードして始めましょう！"
-            : unreadCount > 0
-              ? `積読が${unreadCount}冊あります。まずは1冊読み始めてみましょう！`
-              : "すべての本を読了しました！新しい本を追加してみましょう。"}
-        </p>
-      </div>
+      {/* AI Chat */}
+      <AIChat books={books} />
     </div>
   )
 }

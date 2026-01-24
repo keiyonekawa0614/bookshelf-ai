@@ -10,7 +10,7 @@ import { UploadModal } from "@/components/upload-modal"
 import { ProfileView } from "@/components/profile-view"
 import { useAuth } from "@/lib/auth-context"
 import { getBooks, type Book } from "@/lib/firestore"
-import { AIChat } from "@/components/ai-chat" // Import AIChat component
+import { AIChat } from "@/components/ai-chat"
 
 type Tab = "home" | "books" | "recommend" | "profile"
 

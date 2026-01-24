@@ -2,8 +2,8 @@
 
 import type React from "react"
 
-import { useState, useRef } from "react"
-import { X, ImageIcon, Upload, Loader2, Check } from "lucide-react"
+import { useState, useRef, useEffect } from "react"
+import { X, ImageIcon, Loader2, Check, AlertCircle, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useAuth } from "@/lib/auth-context"
@@ -16,7 +16,7 @@ interface UploadModalProps {
   onComplete?: () => void
 }
 
-type UploadState = "idle" | "uploading" | "form" | "saving" | "done"
+type UploadState = "idle" | "uploading" | "analyzing" | "form" | "saving" | "done"
 
 export function UploadModal({ open, onClose, onComplete }: UploadModalProps) {
   const { user } = useAuth()
@@ -29,6 +29,13 @@ export function UploadModal({ open, onClose, onComplete }: UploadModalProps) {
   })
   const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [isIOSNonSafari, setIsIOSNonSafari] = useState(false)
+
+  useEffect(() => {
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+    const isSafari = /^((?!chrome|android|crios|fxios).)*safari/i.test(navigator.userAgent)
+    setIsIOSNonSafari(isIOS && !isSafari)
+  }, [])
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -41,11 +48,60 @@ export function UploadModal({ open, onClose, onComplete }: UploadModalProps) {
     }
   }
 
+  const analyzeBookImage = async (imageBase64: string) => {
+    try {
+      const response = await fetch("/api/analyze-book", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ imageBase64 }),
+      })
+
+      console.log("[v0] API Response status:", response.status)
+
+      if (!response.ok) {
+        throw new Error("AI解析に失敗しました")
+      }
+
+      const data = await response.json()
+      console.log("[v0] API Response data:", data)
+      console.log("[v0] Title:", data.title)
+      console.log("[v0] Author:", data.author)
+      console.log("[v0] Genre:", data.genre)
+      return data
+    } catch (err) {
+      console.error("AI解析エラー:", err)
+      return null
+    }
+  }
+
   const handleUpload = async () => {
     if (!preview) return
 
     setState("uploading")
-    await new Promise((resolve) => setTimeout(resolve, 500))
+    await new Promise((resolve) => setTimeout(resolve, 300))
+
+    setState("analyzing")
+
+    const result = await analyzeBookImage(preview)
+
+    console.log("[v0] Analyze result:", result)
+
+    if (result && !result.error) {
+      console.log("[v0] Setting bookData:", {
+        title: result.title || "",
+        author: result.author || "",
+        genre: result.genre || "",
+      })
+      setBookData({
+        title: result.title || "",
+        author: result.author || "",
+        genre: result.genre || "",
+      })
+    } else {
+      console.log("[v0] Result is null or has error:", result)
+    }
 
     setState("form")
   }
@@ -112,6 +168,15 @@ export function UploadModal({ open, onClose, onComplete }: UploadModalProps) {
 
         {/* Content */}
         <div className="flex-1 flex flex-col items-center justify-center p-6 overflow-y-auto">
+          {isIOSNonSafari && (
+            <div className="w-full max-w-sm mb-4 p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-amber-200">
+                iOSをお使いの場合、カメラ機能はSafariでのご利用を推奨します。ギャラリーからの写真選択は可能です。
+              </p>
+            </div>
+          )}
+
           {!preview ? (
             <div className="w-full max-w-sm space-y-4">
               <div
@@ -132,12 +197,18 @@ export function UploadModal({ open, onClose, onComplete }: UploadModalProps) {
               {/* 画像プレビュー */}
               <div className="relative aspect-[3/4] rounded-2xl overflow-hidden bg-secondary">
                 <img src={preview || "/placeholder.svg"} alt="Preview" className="w-full h-full object-cover" />
-                {(state === "uploading" || state === "saving" || state === "done") && (
+                {(state === "uploading" || state === "analyzing" || state === "saving" || state === "done") && (
                   <div className="absolute inset-0 bg-background/80 flex flex-col items-center justify-center gap-4">
                     {state === "uploading" && (
                       <>
                         <Loader2 className="h-8 w-8 animate-spin text-accent" />
                         <p className="text-sm">処理中...</p>
+                      </>
+                    )}
+                    {state === "analyzing" && (
+                      <>
+                        <Sparkles className="h-8 w-8 animate-pulse text-accent" />
+                        <p className="text-sm">AIが本の情報を解析中...</p>
                       </>
                     )}
                     {state === "saving" && (
@@ -161,7 +232,7 @@ export function UploadModal({ open, onClose, onComplete }: UploadModalProps) {
               {/* 手動入力フォーム */}
               {state === "form" && (
                 <div className="space-y-4">
-                  <p className="text-sm text-muted-foreground text-center">本の情報を入力してください</p>
+                  <p className="text-sm text-muted-foreground text-center">AIが解析した情報を確認・修正してください</p>
                   {error && <p className="text-sm text-destructive text-center">{error}</p>}
                   <div className="space-y-3">
                     <Input
@@ -208,8 +279,8 @@ export function UploadModal({ open, onClose, onComplete }: UploadModalProps) {
                     className="w-full h-14 bg-accent text-accent-foreground hover:bg-accent/90"
                     onClick={handleUpload}
                   >
-                    <Upload className="h-5 w-5 mr-2" />
-                    この写真で登録
+                    <Sparkles className="h-5 w-5 mr-2" />
+                    AIで解析して登録
                   </Button>
                   <Button variant="ghost" className="w-full" onClick={() => setPreview(null)}>
                     写真を変更

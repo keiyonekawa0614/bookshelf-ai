@@ -66,10 +66,14 @@ export async function POST(request: NextRequest) {
 
     const unreadBooks = books.filter(b => !b.isRead)
     const readBooks = books.filter(b => b.isRead)
+    const today = new Date().toLocaleDateString("ja-JP")
 
     const systemPrompt = `あなたは読書アドバイザーのAIアシスタントです。
 ユーザーの本棚にある本の情報をもとに、読書に関するアドバイスや提案を行います。
 親しみやすく、簡潔に回答してください。
+
+## 今日の日付
+${today}
 
 ## ユーザーの本棚情報
 登録冊数: ${books.length}冊
@@ -81,6 +85,8 @@ ${booksContext}
 
 ## 回答のルール
 - ユーザーの本棚にある本をもとに回答してください
+- 「本日登録」「最近登録」などの質問には、登録日を確認して回答してください
+- 「最近読んでいない」などの質問には、登録日が古く未読の本を提案してください
 - 本棚にない本をおすすめする場合は、その旨を伝えてください
 - 回答は日本語で、2-3文程度で簡潔にしてください`
 

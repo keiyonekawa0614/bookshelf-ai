@@ -66,6 +66,20 @@ const tools = [
           },
           required: ["bookTitle"]
         }
+      },
+      {
+        name: "startReadingSession",
+        description: "指定した本の読書を開始します。読書時間の計測を開始し、本棚画面に遷移します。ユーザーが「はい」「読みます」「その本を読む」「今から読む」などと本を読むことに同意した場合に使用します。直前のAIの応答で提案された本に対して使用してください。",
+        parameters: {
+          type: "object",
+          properties: {
+            bookTitle: {
+              type: "string",
+              description: "読書を開始する本のタイトル（部分一致で検索）"
+            }
+          },
+          required: ["bookTitle"]
+        }
       }
     ]
   }
@@ -168,7 +182,12 @@ ${booksContext}
 ## ツールの使用について
 - ユーザーが「〇〇を読み終わった」「〇〇を読了した」と言った場合は、markBookAsRead ツールを使用してください
 - ユーザーが「〇〇を未読に戻して」「〇〇をまだ読んでいない」と言った場合は、markBookAsUnread ツールを使用してください
-- ツールを使用する際は、本棚にある本のタイトルと照合してください`
+- 本を提案した後、ユーザーが「はい」「読みます」「その本を読む」「今から読む」などと読書に同意した場合は、startReadingSession ツールを使用してください
+- startReadingSession を使用する際は、直前に提案した本のタイトルを使用してください
+- ツールを使用する際は、本棚にある本のタイトルと照合してください
+
+## 本を提案した後の対応
+本を提案した後は、「この本を今から読みますか？」と聞いてください。ユーザーが同意したら読書を開始できます。`
 
     // 会話履歴を含めてリクエストを作成
     const contents = [
@@ -222,14 +241,25 @@ ${booksContext}
 
       if (foundBook) {
         // クライアントに関数実行を指示
-        return NextResponse.json({
-          functionCall: {
-            name,
-            bookId: foundBook.id,
-            bookTitle: foundBook.title,
-            newStatus: name === "markBookAsRead"
-          }
-        })
+        if (name === "startReadingSession") {
+          return NextResponse.json({
+            functionCall: {
+              name,
+              bookId: foundBook.id,
+              bookTitle: foundBook.title,
+              action: "startReading"
+            }
+          })
+        } else {
+          return NextResponse.json({
+            functionCall: {
+              name,
+              bookId: foundBook.id,
+              bookTitle: foundBook.title,
+              newStatus: name === "markBookAsRead"
+            }
+          })
+        }
       } else {
         // 本が見つからない場合
         return NextResponse.json({

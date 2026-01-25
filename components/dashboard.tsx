@@ -78,6 +78,7 @@ export function Dashboard() {
             initialQuestion={initialChatQuestion}
             onInitialQuestionHandled={() => setInitialChatQuestion(undefined)}
             onBooksUpdated={refreshBooks}
+            onNavigateToBooks={() => setActiveTab("books")}
           />
         )}
         {activeTab === "profile" && <ProfileView onLogout={signOut} user={user} books={books} />}

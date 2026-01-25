@@ -5,7 +5,7 @@ import { useState, useRef, useEffect } from "react"
 import { Send, Sparkles, Loader2, User, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { type Book, updateBookReadStatus } from "@/lib/firestore"
+import { type Book, updateBookReadStatus, startReading } from "@/lib/firestore"
 import { useAuth } from "@/lib/auth-context"
 
 interface Message {
@@ -18,6 +18,7 @@ interface ChatViewProps {
   initialQuestion?: string
   onInitialQuestionHandled?: () => void
   onBooksUpdated?: () => void
+  onNavigateToBooks?: () => void
 }
 
 const SUGGESTED_QUESTIONS = [
@@ -27,7 +28,7 @@ const SUGGESTED_QUESTIONS = [
   "ビジネス書でおすすめは？",
 ]
 
-export function ChatView({ books, initialQuestion, onInitialQuestionHandled, onBooksUpdated }: ChatViewProps) {
+export function ChatView({ books, initialQuestion, onInitialQuestionHandled, onBooksUpdated, onNavigateToBooks }: ChatViewProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -88,28 +89,48 @@ export function ChatView({ books, initialQuestion, onInitialQuestionHandled, onB
 
       // Function Callがある場合、実行してから再度AIに結果を返す
       if (data.functionCall) {
-        const { name, bookId, bookTitle, newStatus } = data.functionCall
+        const { name, bookId, bookTitle, newStatus, action } = data.functionCall
         
         if (user) {
           try {
-            // Firestoreを更新
-            await updateBookReadStatus(user.uid, bookId, newStatus)
-            
-            // 本の一覧を更新
-            onBooksUpdated?.()
-            
-            // 成功メッセージを表示
-            const statusText = newStatus ? "読了" : "未読"
-            const assistantMessage: Message = {
-              role: "assistant",
-              content: `「${bookTitle}」を${statusText}に更新しました！`,
+            if (action === "startReading") {
+              // 読書を開始
+              await startReading(user.uid, bookId)
+              
+              // 本の一覧を更新
+              onBooksUpdated?.()
+              
+              // 成功メッセージを表示
+              const assistantMessage: Message = {
+                role: "assistant",
+                content: `「${bookTitle}」の読書を開始しました！本棚画面に移動します。`,
+              }
+              setMessages((prev) => [...prev, assistantMessage])
+              
+              // 少し待ってから本棚に遷移
+              setTimeout(() => {
+                onNavigateToBooks?.()
+              }, 1500)
+            } else {
+              // 読了/未読を更新
+              await updateBookReadStatus(user.uid, bookId, newStatus)
+              
+              // 本の一覧を更新
+              onBooksUpdated?.()
+              
+              // 成功メッセージを表示
+              const statusText = newStatus ? "読了" : "未読"
+              const assistantMessage: Message = {
+                role: "assistant",
+                content: `「${bookTitle}」を${statusText}に更新しました！`,
+              }
+              setMessages((prev) => [...prev, assistantMessage])
             }
-            setMessages((prev) => [...prev, assistantMessage])
           } catch (error) {
-            console.error("Failed to update book status:", error)
+            console.error("Failed to execute function:", error)
             const errorMessage: Message = {
               role: "assistant",
-              content: `「${bookTitle}」の更新に失敗しました。もう一度お試しください。`,
+              content: `操作に失敗しました。もう一度お試しください。`,
             }
             setMessages((prev) => [...prev, errorMessage])
           }

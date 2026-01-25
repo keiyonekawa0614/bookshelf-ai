@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/auth-context"
 import { getBooks, updateBookReadStatus, startReading, stopReading, type Book } from "@/lib/firestore"
 import { Button } from "@/components/ui/button"
+import { BookDetailModal } from "@/components/book-detail-modal"
 
 type Filter = "all" | "unread" | "read"
 
@@ -43,6 +44,7 @@ export function BookList() {
   const [loading, setLoading] = useState(true)
   const [processingBookId, setProcessingBookId] = useState<string | null>(null)
   const [, setTick] = useState(0) // 経過時間更新用
+  const [selectedBook, setSelectedBook] = useState<Book | null>(null)
 
   useEffect(() => {
     async function fetchBooks() {
@@ -138,6 +140,16 @@ export function BookList() {
     }
   }
 
+  const refreshBooks = async () => {
+    if (!user) return
+    try {
+      const fetchedBooks = await getBooks(user.uid)
+      setBooks(fetchedBooks)
+    } catch (error) {
+      console.error("本の取得エラー:", error)
+    }
+  }
+
   const handleStopReading = async (bookId: string) => {
     if (!user) return
     setProcessingBookId(bookId)
@@ -215,7 +227,10 @@ export function BookList() {
 
             return (
               <div key={book.id} className="bg-card rounded-xl p-4 border border-border">
-                <div className="flex gap-4">
+                <div 
+                  className="flex gap-4 cursor-pointer"
+                  onClick={() => setSelectedBook(book)}
+                >
                   <img
                     src={book.coverImageUrl || "/placeholder.svg?height=96&width=64&query=book cover"}
                     alt={book.title}
@@ -234,7 +249,10 @@ export function BookList() {
                     </div>
                   </div>
                   <button
-                    onClick={() => toggleRead(book.id)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      toggleRead(book.id)
+                    }}
                     className={cn(
                       "flex items-center justify-center w-10 h-10 rounded-full border-2 transition-colors self-start shrink-0",
                       book.isRead
@@ -265,7 +283,10 @@ export function BookList() {
                       size="sm"
                       variant="destructive"
                       className="h-8"
-                      onClick={() => handleStopReading(book.id)}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleStopReading(book.id)
+                      }}
                       disabled={isProcessing}
                     >
                       {isProcessing ? (
@@ -280,7 +301,10 @@ export function BookList() {
                       size="sm"
                       variant="outline"
                       className="h-8 bg-transparent"
-                      onClick={() => handleStartReading(book.id)}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleStartReading(book.id)
+                      }}
                       disabled={isProcessing}
                     >
                       {isProcessing ? (
@@ -297,6 +321,17 @@ export function BookList() {
           })
         )}
       </div>
+
+      {/* 詳細・編集モーダル */}
+      {selectedBook && (
+        <BookDetailModal
+          book={selectedBook}
+          isOpen={!!selectedBook}
+          onClose={() => setSelectedBook(null)}
+          onUpdated={refreshBooks}
+          onDeleted={refreshBooks}
+        />
+      )}
     </div>
   )
 }

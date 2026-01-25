@@ -6,10 +6,10 @@
 
 - 写真から本のタイトル・著者・ジャンルを自動抽出（Vertex AI）
 - AIチャット機能（本棚の情報をRAGとして活用）
-- 購入した本と同類のおすすめ本を提案
-- ジャンルの偏りを防ぐ別ジャンルのおすすめ
+- 読書時間の計測（開始/終了ボタンで秒単位で記録）
+- AIエージェントによる読書開始（チャットで「読みます」と答えると自動で計測開始）
 - 読了/未読の管理（積読管理）
-- おすすめ本のAmazonリンク表示
+- 本の詳細編集・削除機能
 
 ## 技術スタック
 
@@ -42,7 +42,7 @@
                                           ┌───────┴───────┐
                                           │               │
                                     画像解析API     AIチャットAPI
-                                   (本の情報抽出)   (RAGベース会話)
+                                   (本の情報抽出)   (RAG + Function Calling)
 ```
 
 ## AI機能
@@ -54,18 +54,46 @@
 - **機能**: アップロードされた本の写真からタイトル・著者・ジャンルを抽出
 - **認証**: Google Auth Library（ローカル/Cloud Run両対応）
 
-### 2. AIチャット（RAGベース）
+### 2. AIチャット（RAGベース + Function Calling）
 
 - **エンドポイント**: `/api/chat`
 - **モデル**: Gemini 2.5 Flash
-- **機能**: ユーザーの本棚データをコンテキストとして、読書に関する質問に回答
-- **RAGデータ**: Firestoreに保存された本の情報（タイトル、著者、ジャンル、読了状態）
+- **機能**: 
+  - ユーザーの本棚データをコンテキストとして、読書に関する質問に回答
+  - Function Callingで読書開始を自動実行
+- **RAGデータ**: Firestoreに保存された本の情報（タイトル、著者、ジャンル、読了状態、読書時間、最終読書日）
 - **認証**: Google Auth Library（ローカル/Cloud Run両対応）
 
 #### チャット例
-- 「今日の夜読むべき本は？」
-- 「積読の中でおすすめは？」
-- 「ビジネス書で読んでない本は？」
+- 「今日読むべき本は？」→ 提案後「読みますか？」と確認
+- 「はい」「読みます」→ 自動で読書開始＆本棚画面に遷移
+- 「最近登録した本は？」
+- 「積読になっている本は？」
+
+#### Function Calling
+
+| ツール名 | 説明 |
+|---------|------|
+| `startReadingSession` | 読書を開始し、本棚画面に遷移 |
+
+## データ構造
+
+### Firestore
+
+```
+users/{userId}
+├── displayName, email, createdAt
+└── books/{bookId}
+    ├── title: string
+    ├── author: string
+    ├── genre: string
+    ├── coverImageUrl: string
+    ├── isRead: boolean
+    ├── createdAt: timestamp
+    ├── lastReadAt: timestamp          // 最終読書日時
+    ├── totalReadingSeconds: number    // 合計読書時間（秒）
+    └── currentReadingStartedAt: timestamp  // 読書中の開始時刻（null=読書中でない）
+```
 
 ## 環境変数
 
@@ -108,9 +136,6 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
     match /users/{userId}/books/{bookId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-    match /users/{userId}/recommendations/{recId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
   }
@@ -177,18 +202,19 @@ gcloud run deploy book-ai-app \
 ├── app/
 │   ├── api/
 │   │   ├── analyze-book/    # Vertex AI 画像解析API
-│   │   └── chat/            # AIチャットAPI（RAG）
+│   │   └── chat/            # AIチャットAPI（RAG + Function Calling）
 │   ├── globals.css
 │   ├── layout.tsx
 │   └── page.tsx
 ├── components/
 │   ├── ui/                  # shadcn/ui コンポーネント
-│   ├── ai-chat.tsx          # AIチャットUI
-│   ├── book-list.tsx        # 本棚一覧
-│   ├── dashboard.tsx        # ホーム画面
+│   ├── ai-suggestion.tsx    # ホーム画面のAI提案UI
+│   ├── book-detail-modal.tsx # 本の詳細・編集モーダル
+│   ├── book-list.tsx        # 本棚一覧（読書時間計測機能付き）
+│   ├── chat-view.tsx        # チャット専用ページ
+│   ├── dashboard.tsx        # メイ���画面
 │   ├── login-screen.tsx     # ログイン画面
 │   ├── profile-view.tsx     # プロフィール
-│   ├── recommendations-view.tsx  # おすすめ本
 │   └── upload-modal.tsx     # 本の登録モーダル
 ├── lib/
 │   ├── auth-context.tsx     # 認証コンテキスト
@@ -201,7 +227,17 @@ gcloud run deploy book-ai-app \
 └── .env.production          # 本番用環境変数（要作成）
 ```
 
+## 画面構成
+
+| タブ | 説明 |
+|-----|------|
+| ホーム | 統計情報、AIへの質問サジェスト |
+| 本棚 | 本の一覧、読書開始/終了、読了切替、詳細編集 |
+| チャット | AIとの会話（読書提案、自動読書開始） |
+| プロフィール | ユーザー情報、ログアウト |
+
 ## 注意事項
 
 - iOS Chromeではカメラ機能が制限されています。Safariの使用を推奨します。
 - `NEXT_PUBLIC_*` 環境変数はビルド時に埋め込まれるため、`.env.production` ファイルが必要です。
+- 本棚の一覧は「読書中 > 最終読書日時 > 合計読書時間」の順でソートされます。

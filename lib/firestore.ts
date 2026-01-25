@@ -123,6 +123,18 @@ export async function deleteBook(userId: string, bookId: string) {
   await deleteDoc(bookRef)
 }
 
+export async function updateBook(
+  userId: string,
+  bookId: string,
+  data: { title?: string; author?: string; genre?: string; coverImageUrl?: string }
+) {
+  const db = getFirebaseDb()
+  if (!db) throw new Error("Firestore is not initialized")
+
+  const bookRef = doc(db, "users", userId, "books", bookId)
+  await updateDoc(bookRef, data)
+}
+
 // 読書開始
 export async function startReading(userId: string, bookId: string) {
   const db = getFirebaseDb()

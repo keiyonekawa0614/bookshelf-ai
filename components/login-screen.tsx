@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { BookOpen, Camera, Sparkles, Loader2 } from "lucide-react"
+import { BookOpen, Camera, Sparkles, Loader2, Clock, MessageCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dashboard } from "@/components/dashboard"
 import { useAuth } from "@/lib/auth-context"
@@ -53,13 +53,35 @@ export function LoginScreen() {
           <span className="text-accent">AI</span>がサポート。
         </h1>
         <p className="mt-4 text-muted-foreground text-base leading-relaxed">
-          本の写真を撮るだけで管理。
+          積読を減らし、読書を習慣に。
           <br />
-          AIがあなたにぴったりの本をおすすめします。
+          あなたの本棚と状況を理解し、
+          <br />
+          「今日の読書」をAIが提案します。
         </p>
 
         {/* Features */}
         <div className="mt-10 space-y-4">
+          <div className="flex items-start gap-4">
+            <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-secondary">
+              <MessageCircle className="h-5 w-5 text-foreground" />
+            </div>
+            <div>
+              <p className="font-medium">AIが今日の1冊を提案</p>
+              <p className="text-sm text-muted-foreground">何を読むか、もう迷わない</p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-4">
+            <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-secondary">
+              <Clock className="h-5 w-5 text-foreground" />
+            </div>
+            <div>
+              <p className="font-medium">読書時間を自動計測</p>
+              <p className="text-sm text-muted-foreground">習慣化をサポート</p>
+            </div>
+          </div>
+
           <div className="flex items-start gap-4">
             <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-secondary">
               <Camera className="h-5 w-5 text-foreground" />
@@ -67,26 +89,6 @@ export function LoginScreen() {
             <div>
               <p className="font-medium">写真で簡単登録</p>
               <p className="text-sm text-muted-foreground">本の写真を撮るだけで自動認識</p>
-            </div>
-          </div>
-
-          <div className="flex items-start gap-4">
-            <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-secondary">
-              <Sparkles className="h-5 w-5 text-foreground" />
-            </div>
-            <div>
-              <p className="font-medium">AIおすすめ</p>
-              <p className="text-sm text-muted-foreground">あなたの好みと積読状況から提案</p>
-            </div>
-          </div>
-
-          <div className="flex items-start gap-4">
-            <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-secondary">
-              <BookOpen className="h-5 w-5 text-foreground" />
-            </div>
-            <div>
-              <p className="font-medium">積読管理</p>
-              <p className="text-sm text-muted-foreground">読了状況をトラッキング</p>
             </div>
           </div>
         </div>

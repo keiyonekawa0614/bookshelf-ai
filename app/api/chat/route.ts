@@ -14,6 +14,9 @@ interface Book {
   genre: string
   isRead: boolean
   createdAt?: { toDate: () => Date } | { seconds: number; nanoseconds: number }
+  lastReadAt?: { toDate: () => Date } | { seconds: number; nanoseconds: number }
+  totalReadingSeconds?: number
+  totalReadingMinutes?: number // 後方互換性のため
 }
 
 interface Message {
@@ -100,23 +103,38 @@ export async function POST(request: NextRequest) {
     }
 
     // 本棚の情報をコンテキストとして作成
-    const formatDate = (createdAt: Book["createdAt"]) => {
-      if (!createdAt) return ""
+    const formatDate = (timestamp: Book["createdAt"] | Book["lastReadAt"]) => {
+      if (!timestamp) return ""
       let date: Date
-      if ("toDate" in createdAt && typeof createdAt.toDate === "function") {
-        date = createdAt.toDate()
-      } else if ("seconds" in createdAt) {
-        date = new Date(createdAt.seconds * 1000)
+      if ("toDate" in timestamp && typeof timestamp.toDate === "function") {
+        date = timestamp.toDate()
+      } else if ("seconds" in timestamp) {
+        date = new Date(timestamp.seconds * 1000)
       } else {
         return ""
       }
       return date.toLocaleDateString("ja-JP")
     }
 
+    const formatReadingTime = (minutes: number | undefined) => {
+      if (!minutes) return "0分"
+      if (minutes < 60) return `${minutes}分`
+      const hours = Math.floor(minutes / 60)
+      const mins = minutes % 60
+      if (mins === 0) return `${hours}時間`
+      return `${hours}時間${mins}分`
+    }
+
     const booksContext = books.length > 0
       ? books.map(book => {
           const dateStr = formatDate(book.createdAt)
-          return `- ID:${book.id} 「${book.title}」${book.author ? ` (著者: ${book.author})` : ""}${book.genre ? ` [ジャンル: ${book.genre}]` : ""}${dateStr ? ` [登録日: ${dateStr}]` : ""} - ${book.isRead ? "読了" : "未読"}`
+          const lastReadStr = formatDate(book.lastReadAt)
+          // totalReadingSecondsを分に変換、後方互換性のためtotalReadingMinutesもチェック
+          const totalMinutes = book.totalReadingSeconds 
+            ? Math.floor(book.totalReadingSeconds / 60) 
+            : (book.totalReadingMinutes || 0)
+          const readingTimeStr = formatReadingTime(totalMinutes)
+          return `- ID:${book.id} 「${book.title}」${book.author ? ` (著者: ${book.author})` : ""}${book.genre ? ` [ジャンル: ${book.genre}]` : ""}${dateStr ? ` [登録日: ${dateStr}]` : ""}${lastReadStr ? ` [最終読書日: ${lastReadStr}]` : ""} [読書時間: ${readingTimeStr}] - ${book.isRead ? "読了" : "未読"}`
         }).join("\n")
       : "まだ本が登録されていません。"
 
@@ -142,7 +160,8 @@ ${booksContext}
 ## 回答のルール
 - ユーザーの本棚にある本をもとに回答してください
 - 「本日登録」「最近登録」などの質問には、登録日を確認して回答してください
-- 「最近読んでいない」などの質問には、登録日が古く未読の本を提案してください
+- 「最近読んでいない」などの質問には、最終読書日が古い本や読書時間が少ない本を提案してください
+- 「今週どれくらい読んだ？」などの質問には、読書時間を集計して回答してください
 - 本棚にない本をおすすめする場合は、その旨を伝えてください
 - 回答は日本語で、2-3文程度で簡潔にしてください
 

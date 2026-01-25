@@ -2,18 +2,47 @@
 
 import type React from "react"
 import { useState, useEffect } from "react"
-import { Check, BookOpen, Loader2 } from "lucide-react"
+import { Check, BookOpen, Loader2, Play, Square, Clock } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/auth-context"
-import { getBooks, updateBookReadStatus, type Book } from "@/lib/firestore"
+import { getBooks, updateBookReadStatus, startReading, stopReading, type Book } from "@/lib/firestore"
+import { Button } from "@/components/ui/button"
 
 type Filter = "all" | "unread" | "read"
+
+// 読書時間をフォーマット（秒単位）
+function formatReadingTime(seconds: number): string {
+  if (seconds < 60) {
+    return `${seconds}秒`
+  }
+  if (seconds < 3600) {
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins}分${secs}秒`
+  }
+  const hours = Math.floor(seconds / 3600)
+  const mins = Math.floor((seconds % 3600) / 60)
+  if (mins === 0) {
+    return `${hours}時間`
+  }
+  return `${hours}時間${mins}分`
+}
+
+// 経過時間を計算（読書中の場合）- 秒単位
+function getElapsedSeconds(startedAt: { toDate: () => Date } | null): number {
+  if (!startedAt) return 0
+  const now = new Date()
+  const start = startedAt.toDate()
+  return Math.floor((now.getTime() - start.getTime()) / 1000)
+}
 
 export function BookList() {
   const { user } = useAuth()
   const [filter, setFilter] = useState<Filter>("all")
   const [books, setBooks] = useState<Book[]>([])
   const [loading, setLoading] = useState(true)
+  const [processingBookId, setProcessingBookId] = useState<string | null>(null)
+  const [, setTick] = useState(0) // 経過時間更新用
 
   useEffect(() => {
     async function fetchBooks() {
@@ -31,6 +60,18 @@ export function BookList() {
 
     fetchBooks()
   }, [user])
+
+  // 読書中の本がある場合、1秒ごとに経過時間を更新
+  useEffect(() => {
+    const hasReadingBook = books.some(b => b.currentReadingStartedAt)
+    if (!hasReadingBook) return
+
+    const interval = setInterval(() => {
+      setTick(t => t + 1)
+    }, 1000) // 1秒ごと
+
+    return () => clearInterval(interval)
+  }, [books])
 
   const filteredBooks = books.filter((book) => {
     if (filter === "unread") return !book.isRead
@@ -55,6 +96,56 @@ export function BookList() {
       console.error("状態更新エラー:", error)
       // エラー時は元に戻す
       setBooks(books.map((b) => (b.id === id ? { ...b, isRead: !newStatus } : b)))
+    }
+  }
+
+  const handleStartReading = async (bookId: string) => {
+    if (!user) return
+    setProcessingBookId(bookId)
+
+    try {
+      await startReading(user.uid, bookId)
+      // 開始時刻を固定値としてキャプチャ
+      const startTime = new Date()
+      // UIを更新
+      setBooks(books.map(b => 
+        b.id === bookId 
+          ? { ...b, currentReadingStartedAt: { toDate: () => startTime } as Book['currentReadingStartedAt'] }
+          : b
+      ))
+    } catch (error) {
+      console.error("読書開始エラー:", error)
+    } finally {
+      setProcessingBookId(null)
+    }
+  }
+
+  const handleStopReading = async (bookId: string) => {
+    if (!user) return
+    setProcessingBookId(bookId)
+
+    try {
+      const elapsedSeconds = await stopReading(user.uid, bookId)
+      console.log("[v0] handleStopReading - elapsedSeconds:", elapsedSeconds)
+      const book = books.find(b => b.id === bookId)
+      // 既存データがtotalReadingMinutesの場合は秒に変換
+      const currentTotalSeconds = book?.totalReadingSeconds || ((book as unknown as { totalReadingMinutes?: number })?.totalReadingMinutes || 0) * 60
+      
+      // UIを更新
+      setBooks(books.map(b => 
+        b.id === bookId 
+          ? { 
+              ...b, 
+              currentReadingStartedAt: null,
+              lastReadAt: { toDate: () => new Date() } as Book['lastReadAt'],
+              totalReadingSeconds: currentTotalSeconds + elapsedSeconds
+            }
+          : b
+      ))
+    } catch (error) {
+      console.error("読書終了エラー:", error)
+    } finally {
+      setProcessingBookId(null)
     }
   }
 
@@ -96,38 +187,96 @@ export function BookList() {
             <p className="text-sm mt-1">写真をアップロードして追加しましょう</p>
           </div>
         ) : (
-          filteredBooks.map((book) => (
-            <div key={book.id} className="flex gap-4 bg-card rounded-xl p-4 border border-border">
-              <img
-                src={book.coverImageUrl || "/placeholder.svg?height=96&width=64&query=book cover"}
-                alt={book.title}
-                className="w-16 h-24 object-cover rounded-lg bg-secondary"
-              />
-              <div className="flex-1 min-w-0">
-                <h3 className="font-medium truncate">{book.title}</h3>
-                <p className="text-sm text-muted-foreground truncate">{book.author}</p>
-                <div className="flex items-center gap-2 mt-2">
-                  <span className="px-2 py-1 text-xs bg-secondary rounded-md">{book.genre}</span>
-                  {book.createdAt && (
-                    <span className="text-xs text-muted-foreground">
-                      {book.createdAt.toDate().toLocaleDateString("ja-JP")}
-                    </span>
+          filteredBooks.map((book) => {
+            const isReading = !!book.currentReadingStartedAt
+            const elapsedSeconds = getElapsedSeconds(book.currentReadingStartedAt)
+            // 既存データがtotalReadingMinutesの場合は秒に変換
+            const existingSeconds = book.totalReadingSeconds || ((book as unknown as { totalReadingMinutes?: number }).totalReadingMinutes || 0) * 60
+            const totalSeconds = existingSeconds + elapsedSeconds
+            const isProcessing = processingBookId === book.id
+
+            return (
+              <div key={book.id} className="bg-card rounded-xl p-4 border border-border">
+                <div className="flex gap-4">
+                  <img
+                    src={book.coverImageUrl || "/placeholder.svg?height=96&width=64&query=book cover"}
+                    alt={book.title}
+                    className="w-16 h-24 object-cover rounded-lg bg-secondary"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-medium truncate">{book.title}</h3>
+                    <p className="text-sm text-muted-foreground truncate">{book.author}</p>
+                    <div className="flex items-center gap-2 mt-2 flex-wrap">
+                      <span className="px-2 py-1 text-xs bg-secondary rounded-md">{book.genre}</span>
+                      {book.createdAt && (
+                        <span className="text-xs text-muted-foreground">
+                          {book.createdAt.toDate().toLocaleDateString("ja-JP")}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => toggleRead(book.id)}
+                    className={cn(
+                      "flex items-center justify-center w-10 h-10 rounded-full border-2 transition-colors self-start shrink-0",
+                      book.isRead
+                        ? "bg-accent border-accent text-accent-foreground"
+                        : "border-border text-muted-foreground",
+                    )}
+                  >
+                    {book.isRead ? <Check className="h-5 w-5" /> : <BookOpen className="h-4 w-4" />}
+                  </button>
+                </div>
+
+                {/* 読書時間セクション */}
+                <div className="mt-3 pt-3 border-t border-border flex items-center justify-between">
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      <span>合計: {formatReadingTime(totalSeconds)}</span>
+                    </div>
+                    {book.lastReadAt && (
+                      <span>
+                        最終: {book.lastReadAt.toDate().toLocaleDateString("ja-JP")}
+                      </span>
+                    )}
+                  </div>
+
+                  {isReading ? (
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      className="h-8"
+                      onClick={() => handleStopReading(book.id)}
+                      disabled={isProcessing}
+                    >
+                      {isProcessing ? (
+                        <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                      ) : (
+                        <Square className="h-3 w-3 mr-1" />
+                      )}
+                      終了 ({formatReadingTime(elapsedSeconds)})
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 bg-transparent"
+                      onClick={() => handleStartReading(book.id)}
+                      disabled={isProcessing}
+                    >
+                      {isProcessing ? (
+                        <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                      ) : (
+                        <Play className="h-3 w-3 mr-1" />
+                      )}
+                      読書開始
+                    </Button>
                   )}
                 </div>
               </div>
-              <button
-                onClick={() => toggleRead(book.id)}
-                className={cn(
-                  "flex items-center justify-center w-10 h-10 rounded-full border-2 transition-colors self-center",
-                  book.isRead
-                    ? "bg-accent border-accent text-accent-foreground"
-                    : "border-border text-muted-foreground",
-                )}
-              >
-                {book.isRead ? <Check className="h-5 w-5" /> : <BookOpen className="h-4 w-4" />}
-              </button>
-            </div>
-          ))
+            )
+          })
         )}
       </div>
     </div>

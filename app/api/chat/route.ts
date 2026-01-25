@@ -40,34 +40,6 @@ const tools = [
   {
     functionDeclarations: [
       {
-        name: "markBookAsRead",
-        description: "指定した本を読了済みに更新します。ユーザーが「〇〇を読み終わった」「〇〇を読了した」などと言った場合に使用します。",
-        parameters: {
-          type: "object",
-          properties: {
-            bookTitle: {
-              type: "string",
-              description: "読了に更新する本のタイトル（部分一致で検索）"
-            }
-          },
-          required: ["bookTitle"]
-        }
-      },
-      {
-        name: "markBookAsUnread",
-        description: "指定した本を未読（積読）に戻します。ユーザーが「〇〇をまだ読んでいない」「〇〇を未読に戻して」などと言った場合に使用します。",
-        parameters: {
-          type: "object",
-          properties: {
-            bookTitle: {
-              type: "string",
-              description: "未読に戻す本のタイトル（部分一致で検索）"
-            }
-          },
-          required: ["bookTitle"]
-        }
-      },
-      {
         name: "startReadingSession",
         description: "指定した本の読書を開始します。読書時間の計測を開始し、本棚画面に遷移します。ユーザーが「はい」「読みます」「その本を読む」「今から読む」などと本を読むことに同意した場合に使用します。直前のAIの応答で提案された本に対して使用してください。",
         parameters: {
@@ -180,8 +152,6 @@ ${booksContext}
 - 回答は日本語で、2-3文程度で簡潔にしてください
 
 ## ツールの使用について
-- ユーザーが「〇〇を読み終わった」「〇〇を読了した」と言った場合は、markBookAsRead ツールを使用してください
-- ユーザーが「〇〇を未読に戻して」「〇〇をまだ読んでいない」と言った場合は、markBookAsUnread ツールを使用してください
 - 本を提案した後、ユーザーが「はい」「読みます」「その本を読む」「今から読む」などと読書に同意した場合は、startReadingSession ツールを使用してください
 - startReadingSession を使用する際は、直前に提案した本のタイトルを使用してください
 - ツールを使用する際は、本棚にある本のタイトルと照合してください
@@ -241,25 +211,14 @@ ${booksContext}
 
       if (foundBook) {
         // クライアントに関数実行を指示
-        if (name === "startReadingSession") {
-          return NextResponse.json({
-            functionCall: {
-              name,
-              bookId: foundBook.id,
-              bookTitle: foundBook.title,
-              action: "startReading"
-            }
-          })
-        } else {
-          return NextResponse.json({
-            functionCall: {
-              name,
-              bookId: foundBook.id,
-              bookTitle: foundBook.title,
-              newStatus: name === "markBookAsRead"
-            }
-          })
-        }
+        return NextResponse.json({
+          functionCall: {
+            name,
+            bookId: foundBook.id,
+            bookTitle: foundBook.title,
+            action: "startReading"
+          }
+        })
       } else {
         // 本が見つからない場合
         return NextResponse.json({

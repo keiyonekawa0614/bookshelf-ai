@@ -5,7 +5,7 @@ import { useState, useRef, useEffect } from "react"
 import { Send, Sparkles, Loader2, User, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { type Book, updateBookReadStatus, startReading } from "@/lib/firestore"
+import { type Book, startReading } from "@/lib/firestore"
 import { useAuth } from "@/lib/auth-context"
 
 interface Message {
@@ -89,48 +89,32 @@ export function ChatView({ books, initialQuestion, onInitialQuestionHandled, onB
 
       // Function Callがある場合、実行してから再度AIに結果を返す
       if (data.functionCall) {
-        const { name, bookId, bookTitle, newStatus, action } = data.functionCall
+        const { bookId, bookTitle } = data.functionCall
         
         if (user) {
           try {
-            if (action === "startReading") {
-              // 読書を開始
-              await startReading(user.uid, bookId)
-              
-              // 本の一覧を更新
-              onBooksUpdated?.()
-              
-              // 成功メッセージを表示
-              const assistantMessage: Message = {
-                role: "assistant",
-                content: `「${bookTitle}」の読書を開始しました！本棚画面に移動します。`,
-              }
-              setMessages((prev) => [...prev, assistantMessage])
-              
-              // 少し待ってから本棚に遷移
-              setTimeout(() => {
-                onNavigateToBooks?.()
-              }, 1500)
-            } else {
-              // 読了/未読を更新
-              await updateBookReadStatus(user.uid, bookId, newStatus)
-              
-              // 本の一覧を更新
-              onBooksUpdated?.()
-              
-              // 成功メッセージを表示
-              const statusText = newStatus ? "読了" : "未読"
-              const assistantMessage: Message = {
-                role: "assistant",
-                content: `「${bookTitle}」を${statusText}に更新しました！`,
-              }
-              setMessages((prev) => [...prev, assistantMessage])
+            // 読書を開始
+            await startReading(user.uid, bookId)
+            
+            // 本の一覧を更新
+            onBooksUpdated?.()
+            
+            // 成功メッセージを表示
+            const assistantMessage: Message = {
+              role: "assistant",
+              content: `「${bookTitle}」の読書を開始しました！本棚画面に移動します。`,
             }
+            setMessages((prev) => [...prev, assistantMessage])
+            
+            // 少し待ってから本棚に遷移
+            setTimeout(() => {
+              onNavigateToBooks?.()
+            }, 1500)
           } catch (error) {
-            console.error("Failed to execute function:", error)
+            console.error("Failed to start reading:", error)
             const errorMessage: Message = {
               role: "assistant",
-              content: `操作に失敗しました。もう一度お試しください。`,
+              content: `読書の開始に失敗しました。もう一度お試しください。`,
             }
             setMessages((prev) => [...prev, errorMessage])
           }

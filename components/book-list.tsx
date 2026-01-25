@@ -73,7 +73,25 @@ export function BookList() {
     return () => clearInterval(interval)
   }, [books])
 
-  const filteredBooks = books.filter((book) => {
+  // 本を並び替え: 読書中 > 最終読書日時 > 合計時間
+  const sortedBooks = [...books].sort((a, b) => {
+    // 1. 読書中のものを一番上に
+    const aIsReading = a.currentReadingStartedAt ? 1 : 0
+    const bIsReading = b.currentReadingStartedAt ? 1 : 0
+    if (aIsReading !== bIsReading) return bIsReading - aIsReading
+
+    // 2. 最終読書日時が新しい順
+    const aLastRead = a.lastReadAt?.toDate?.()?.getTime() || 0
+    const bLastRead = b.lastReadAt?.toDate?.()?.getTime() || 0
+    if (aLastRead !== bLastRead) return bLastRead - aLastRead
+
+    // 3. 合計読書時間が長い順
+    const aTotal = a.totalReadingSeconds || 0
+    const bTotal = b.totalReadingSeconds || 0
+    return bTotal - aTotal
+  })
+
+  const filteredBooks = sortedBooks.filter((book) => {
     if (filter === "unread") return !book.isRead
     if (filter === "read") return book.isRead
     return true

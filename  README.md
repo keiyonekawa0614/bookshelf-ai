@@ -25,24 +25,113 @@
 
 ## アーキテクチャ
 
+### システム全体図
+
+```mermaid
+graph TB
+    subgraph Client["クライアント (Browser)"]
+        A[スマホ / PC]
+    end
+
+    subgraph CloudRun["Google Cloud Run"]
+        B[Next.js 16 App Router]
+        B --> C["/api/analyze-book<br/>画像解析API"]
+        B --> D["/api/chat<br/>AIチャットAPI"]
+    end
+
+    subgraph GCP["Google Cloud Platform"]
+        E[(Cloud Firestore<br/>ユーザー・本データ)]
+        F[(Cloud Storage<br/>本の表紙画像)]
+        G[Vertex AI<br/>Gemini 2.5 Flash]
+    end
+
+    subgraph Auth["認証"]
+        H[Firebase Authentication<br/>Identity Platform]
+    end
+
+    A <-->|HTTPS| B
+    A -->|Google ログイン| H
+    B --> E
+    B --> F
+    C -->|画像 + プロンプト| G
+    D -->|本棚データ(RAG) + 会話履歴| G
 ```
-┌─────────────────┐     ┌─────────────────┐
-│   スマホ/PC      │────▶│   Cloud Run     │
-│   (Browser)     │◀────│   (Next.js)     │
-└─────────────────┘     └────────┬────────┘
-                                 │
-        ┌────────────────────────┼────────────────────────┐
-        │                        │                        │
-        ▼                        ▼                        ▼
-┌───────────────┐    ┌───────────────┐    ┌───────────────┐
-│   Firestore   │    │Cloud Storage  │    │  Vertex AI    │
-│   (データ)     │    │   (画像)      │    │  (Gemini)     │
-└───────────────┘    └───────────────┘    └───────────────┘
-                                                  │
-                                          ┌───────┴───────┐
-                                          │               │
-                                    画像解析API     AIチャットAPI
-                                   (本の情報抽出)   (RAG + Function Calling)
+
+### AIチャット処理フロー
+
+```mermaid
+sequenceDiagram
+    actor User as ユーザー
+    participant Chat as チャットUI
+    participant API as /api/chat
+    participant Gemini as Vertex AI (Gemini)
+    participant DB as Firestore
+
+    User->>Chat: 「今日読むべき本は？」
+    Chat->>API: メッセージ + 本棚データ(RAG)
+    API->>Gemini: プロンプト + 本棚コンテキスト + ツール定義
+    Gemini-->>API: 「〇〇がおすすめです。読みますか？」
+    API-->>Chat: レスポンス表示
+    Chat-->>User: 「〇〇がおすすめです。読みますか？」
+
+    User->>Chat: 「はい」
+    Chat->>API: メッセージ + 本棚データ
+    API->>Gemini: プロンプト + 会話履歴
+    Gemini-->>API: Function Call: startReadingSession(bookTitle)
+    API-->>Chat: functionCall レスポンス
+    Chat->>DB: startReading(bookId) - 計測開始
+    Chat-->>User: 「読書を開始しました！」
+    Chat->>Chat: 本棚画面に自動遷移
+```
+
+### 本の登録フロー
+
+```mermaid
+sequenceDiagram
+    actor User as ユーザー
+    participant Upload as アップロードUI
+    participant API as /api/analyze-book
+    participant Gemini as Vertex AI (Gemini)
+    participant Storage as Cloud Storage
+    participant DB as Firestore
+
+    User->>Upload: 写真をアップロード
+    Upload->>API: 画像データ(Base64)
+    API->>Gemini: 画像 + 「タイトル・著者・ジャンルを抽出」
+    Gemini-->>API: { title, author, genre }
+    API-->>Upload: 解析結果
+    Upload-->>User: フォームに自動入力
+    User->>Upload: 「登録」ボタン
+    Upload->>Storage: 画像アップロード
+    Storage-->>Upload: 画像URL
+    Upload->>DB: 本データ保存(タイトル, 著者, ジャンル, 画像URL)
+    DB-->>Upload: 完了
+    Upload-->>User: 本棚に追加完了
+```
+
+### データモデル
+
+```mermaid
+erDiagram
+    USERS ||--o{ BOOKS : "has"
+    USERS {
+        string uid PK
+        string displayName
+        string email
+        timestamp createdAt
+    }
+    BOOKS {
+        string id PK
+        string title
+        string author
+        string genre
+        string coverImageUrl
+        boolean isRead
+        timestamp createdAt
+        timestamp lastReadAt
+        number totalReadingSeconds
+        timestamp currentReadingStartedAt
+    }
 ```
 
 ## AI機能
@@ -212,7 +301,7 @@ gcloud run deploy book-ai-app \
 │   ├── book-detail-modal.tsx # 本の詳細・編集モーダル
 │   ├── book-list.tsx        # 本棚一覧（読書時間計測機能付き）
 │   ├── chat-view.tsx        # チャット専用ページ
-│   ├── dashboard.tsx        # メイ���画面
+│   ├── dashboard.tsx        # メイン画面
 │   ├── login-screen.tsx     # ログイン画面
 │   ├── profile-view.tsx     # プロフィール
 │   └── upload-modal.tsx     # 本の登録モーダル

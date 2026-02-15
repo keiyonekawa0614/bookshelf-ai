@@ -34,9 +34,9 @@ graph TB
     end
 
     subgraph CloudRun["Google Cloud Run"]
-        B[Next.js 16 App Router]
-        C[/api/analyze-book - 画像解析API]
-        D[/api/chat - AIチャットAPI]
+        B["Next.js 16 App Router"]
+        C["画像解析API - analyze-book"]
+        D["AIチャットAPI - chat"]
         B --> C
         B --> D
     end
@@ -52,11 +52,11 @@ graph TB
     end
 
     A <-->|HTTPS| B
-    A -->|Google ログイン| H
+    A -->|Google Login| H
     B --> E
     B --> F
-    C -->|画像 + プロンプト| G
-    D -->|本棚データRAG + 会話履歴| G
+    C -->|Image + Prompt| G
+    D -->|RAG + History| G
 ```
 
 ### AIチャット処理フロー

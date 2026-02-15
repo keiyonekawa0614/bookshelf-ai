@@ -29,24 +29,26 @@
 
 ```mermaid
 graph TB
-    subgraph Client["クライアント (Browser)"]
+    subgraph Client["クライアント - Browser"]
         A[スマホ / PC]
     end
 
     subgraph CloudRun["Google Cloud Run"]
         B[Next.js 16 App Router]
-        B --> C["/api/analyze-book<br/>画像解析API"]
-        B --> D["/api/chat<br/>AIチャットAPI"]
+        C[/api/analyze-book - 画像解析API]
+        D[/api/chat - AIチャットAPI]
+        B --> C
+        B --> D
     end
 
     subgraph GCP["Google Cloud Platform"]
-        E[(Cloud Firestore<br/>ユーザー・本データ)]
-        F[(Cloud Storage<br/>本の表紙画像)]
-        G[Vertex AI<br/>Gemini 2.5 Flash]
+        E[(Firestore - ユーザー・本データ)]
+        F[(Cloud Storage - 本の表紙画像)]
+        G[Vertex AI - Gemini 2.5 Flash]
     end
 
     subgraph Auth["認証"]
-        H[Firebase Authentication<br/>Identity Platform]
+        H[Firebase Auth - Identity Platform]
     end
 
     A <-->|HTTPS| B
@@ -54,7 +56,7 @@ graph TB
     B --> E
     B --> F
     C -->|画像 + プロンプト| G
-    D -->|本棚データ(RAG) + 会話履歴| G
+    D -->|本棚データRAG + 会話履歴| G
 ```
 
 ### AIチャット処理フロー
@@ -70,17 +72,17 @@ sequenceDiagram
     User->>Chat: 「今日読むべき本は？」
     Chat->>API: メッセージ + 本棚データ(RAG)
     API->>Gemini: プロンプト + 本棚コンテキスト + ツール定義
-    Gemini-->>API: 「〇〇がおすすめです。読みますか？」
+    Gemini-->>API: おすすめの本を提案
     API-->>Chat: レスポンス表示
-    Chat-->>User: 「〇〇がおすすめです。読みますか？」
+    Chat-->>User: おすすめを表示し読むか確認
 
-    User->>Chat: 「はい」
+    User->>Chat: はい / 読みます
     Chat->>API: メッセージ + 本棚データ
     API->>Gemini: プロンプト + 会話履歴
-    Gemini-->>API: Function Call: startReadingSession(bookTitle)
+    Gemini-->>API: Function Call startReadingSession
     API-->>Chat: functionCall レスポンス
-    Chat->>DB: startReading(bookId) - 計測開始
-    Chat-->>User: 「読書を開始しました！」
+    Chat->>DB: startReading - 計測開始
+    Chat-->>User: 読書を開始しました
     Chat->>Chat: 本棚画面に自動遷移
 ```
 
@@ -96,15 +98,15 @@ sequenceDiagram
     participant DB as Firestore
 
     User->>Upload: 写真をアップロード
-    Upload->>API: 画像データ(Base64)
-    API->>Gemini: 画像 + 「タイトル・著者・ジャンルを抽出」
-    Gemini-->>API: { title, author, genre }
+    Upload->>API: 画像データ Base64
+    API->>Gemini: 画像 + プロンプト
+    Gemini-->>API: title, author, genre
     API-->>Upload: 解析結果
     Upload-->>User: フォームに自動入力
     User->>Upload: 「登録」ボタン
     Upload->>Storage: 画像アップロード
     Storage-->>Upload: 画像URL
-    Upload->>DB: 本データ保存(タイトル, 著者, ジャンル, 画像URL)
+    Upload->>DB: 本データ保存
     DB-->>Upload: 完了
     Upload-->>User: 本棚に追加完了
 ```
